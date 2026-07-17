@@ -22,6 +22,16 @@ internal fun LlmProviderConfig.usesOpenAiCompatibleModelCatalog(): Boolean {
         normalizedBaseUrl != definition.defaultBaseUrl
 }
 
+internal fun AppSettings.usesOpenAiCompatibleModelCatalog(): Boolean {
+    val definition = PiProviderCatalog.resolve(piProviderId)
+    if (!definition.isBuiltIn) return true
+
+    val normalizedBaseUrl = baseUrl.trim().trimEnd('/')
+    return piProviderId == "openai" &&
+        normalizedBaseUrl.isNotBlank() &&
+        normalizedBaseUrl != definition.defaultBaseUrl
+}
+
 internal fun supportedThinkingLevels(levels: JSONArray): List<String> =
     buildList {
         for (index in 0 until levels.length()) {

@@ -10,6 +10,24 @@ import org.junit.Test
 
 class ProviderModelCatalogClientTest {
     @Test
+    fun openAiCompatibleCatalogDetectionWorksForSettingsAndProviderConfigs() {
+        assertEquals(
+            true,
+            AppSettings(
+                piProviderId = "openai-compatible",
+                baseUrl = "https://example.test/v1",
+            ).usesOpenAiCompatibleModelCatalog(),
+        )
+        assertEquals(
+            false,
+            AppSettings(
+                piProviderId = "openai",
+                baseUrl = PiProviderCatalog.resolve("openai").defaultBaseUrl,
+            ).usesOpenAiCompatibleModelCatalog(),
+        )
+    }
+
+    @Test
     fun thinkingLevelsUsePiCatalogResults() {
         assertEquals(emptyList<String>(), supportedThinkingLevels(JSONArray()))
         assertEquals(
