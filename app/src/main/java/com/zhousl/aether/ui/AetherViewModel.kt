@@ -27,6 +27,8 @@ import com.zhousl.aether.data.InstalledSkill
 import com.zhousl.aether.data.InstalledPiExtension
 import com.zhousl.aether.data.PiExtensionCatalogEntry
 import com.zhousl.aether.data.ProviderModelCatalogClient
+import com.zhousl.aether.data.openAiCompatibleThinkingLevels
+import com.zhousl.aether.data.usesOpenAiCompatibleModelCatalog
 import com.zhousl.aether.data.LlmProviderConfig
 import com.zhousl.aether.data.ModelCatalogClient
 import com.zhousl.aether.data.LocalRuntimeId
@@ -106,6 +108,7 @@ import org.json.JSONObject
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.Base64
+import java.io.ByteArrayOutputStream
 
 private const val FollowUpTourAutoOpenDelayMillis = 2_500L
 private const val AppUpdateCheckIntervalMillis = 3L * 24L * 60L * 60L * 1000L
@@ -1986,10 +1989,18 @@ class AetherViewModel(
         val config = current.providerConfigs.firstOrNull { it.id == option.providerConfigId }
             ?: return onResolved(false)
         val definition = com.zhousl.aether.data.PiProviderCatalog.resolve(config.piProviderId)
-        if (!definition.isBuiltIn) {
-            onResolved(false)
+        if (config.usesOpenAiCompatibleModelCatalog()) {
+            val levels = openAiCompatibleThinkingLevels()
+            _uiState.update { state ->
+                state.copy(
+                    thinkingLevelsByProviderModel = state.thinkingLevelsByProviderModel +
+                        (cacheKey to levels),
+                )
+            }
+            onResolved(true)
             return
         }
+        if (!definition.isBuiltIn) return onResolved(false)
 
         viewModelScope.launch {
             val result = ProviderModelCatalogClient.fetchPiThinkingLevels(
@@ -2031,6 +2042,16 @@ class AetherViewModel(
         val config = current.providerConfigs.firstOrNull { it.id == option.providerConfigId }
             ?: return
         val definition = com.zhousl.aether.data.PiProviderCatalog.resolve(config.piProviderId)
+        if (config.usesOpenAiCompatibleModelCatalog()) {
+            val cacheKey = "${option.piProviderId.trim()}/${option.modelId.trim()}"
+            _uiState.update { state ->
+                state.copy(
+                    thinkingLevelsByProviderModel = state.thinkingLevelsByProviderModel +
+                        (cacheKey to openAiCompatibleThinkingLevels()),
+                )
+            }
+            return
+        }
         if (!definition.isBuiltIn) return
 
         viewModelScope.launch {
@@ -3805,6 +3826,7 @@ class AetherViewModel(
         uri: Uri,
     ): ChatAttachment? {
         val metadata = readAttachmentMetadata(uri) ?: return null
+        val inlineBase64 = readInlineImageBase64(uri, metadata)
         return ChatAttachment(
             id = "attachment-${System.currentTimeMillis()}-${uri.hashCode()}",
             uri = uri.toString(),
@@ -3813,7 +3835,31 @@ class AetherViewModel(
             sizeBytes = metadata.sizeBytes,
             kind = metadata.kind,
             workspaceState = AttachmentWorkspaceState.Pending,
+            inlineBase64 = inlineBase64,
         )
+    }
+
+    private fun readInlineImageBase64(
+        uri: Uri,
+        metadata: AttachmentMetadata,
+    ): String {
+        if (metadata.kind != AttachmentKind.Image || !metadata.mimeType.startsWith("image/")) return ""
+        if ((metadata.sizeBytes ?: 0L) > MaxInlineImageAttachmentBytes) return ""
+
+        return runCatching {
+            val resolver = getApplication<Application>().contentResolver
+            resolver.openInputStream(uri)?.use { input ->
+                val output = ByteArrayOutputStream()
+                val buffer = ByteArray(32 * 1024)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    if (output.size() + read > MaxInlineImageAttachmentBytes) return@use ""
+                    output.write(buffer, 0, read)
+                }
+                Base64.getEncoder().encodeToString(output.toByteArray())
+            }.orEmpty()
+        }.getOrDefault("")
     }
 
     private suspend fun importDraftAttachmentToWorkspace(
@@ -3881,11 +3927,22 @@ class AetherViewModel(
                     )
                 },
                 onFailure = { throwable ->
+                    val canSendInline = existingAttachment.kind == AttachmentKind.Image &&
+                        existingAttachment.mimeType.startsWith("image/") &&
+                        existingAttachment.inlineBase64.isNotBlank()
                     existingAttachment.copy(
-                        workspaceState = AttachmentWorkspaceState.Failed,
-                        workspaceError = throwable.message
-                            .orEmpty()
-                            .ifBlank { "Couldn't copy this attachment into the workspace." },
+                        workspaceState = if (canSendInline) {
+                            AttachmentWorkspaceState.Ready
+                        } else {
+                            AttachmentWorkspaceState.Failed
+                        },
+                        workspaceError = if (canSendInline) {
+                            ""
+                        } else {
+                            throwable.message
+                                .orEmpty()
+                                .ifBlank { "Couldn't copy this attachment into the workspace." }
+                        },
                         workspaceBytesPerSecond = 0L,
                     )
                 },

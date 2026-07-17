@@ -77,6 +77,10 @@ class ProviderModelCatalogClientTest {
             )
 
             assertEquals(listOf("gpt-test"), result.models)
+            assertEquals(
+                openAiCompatibleThinkingLevels(),
+                result.thinkingLevelsByModel["gpt-test"],
+            )
             val request = server.takeRequest()
             assertEquals(AetherLlmUserAgent, request.getHeader("User-Agent"))
             assertEquals("models", request.getHeader("X-Aether-Test"))
@@ -126,6 +130,10 @@ class ProviderModelCatalogClientTest {
 
             assertEquals(null, result.error)
             assertEquals(listOf("third-party-model"), result.models)
+            assertEquals(
+                openAiCompatibleThinkingLevels(),
+                result.thinkingLevelsByModel["third-party-model"],
+            )
             assertEquals("/v1/models", server.takeRequest().path)
         } finally {
             server.shutdown()

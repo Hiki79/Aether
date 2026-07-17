@@ -6,6 +6,7 @@ import com.zhousl.aether.data.LlmTokenUsage
 import com.zhousl.aether.data.PiProviderCatalog
 import com.zhousl.aether.data.normalizeReasoningEffort
 import com.zhousl.aether.data.ProviderAuthMethod
+import com.zhousl.aether.data.usesOpenAiCompatibleModelCatalog
 import org.json.JSONObject
 import java.util.Locale
 
@@ -108,7 +109,7 @@ fun AppSettings.toPiModelConfig(): PiModelConfig {
             ""
         },
         customHeaders = customHeaders.toPiHeaderMap(),
-        reasoning = false,
+        reasoning = usesOpenAiCompatibleModelCatalog() && toPiThinkingLevel() != "off",
         timeoutMillis = llmInactivityReconnectTimeoutSeconds
             .coerceIn(30, 3_600) * 1_000,
         authMethod = effectiveAuthMethod,

@@ -1461,13 +1461,24 @@ class SessionExecutionManager(
         attachment: ChatAttachment,
         settings: AppSettings,
     ): List<LlmContentPart> {
+        val canInlineImage = canInlineWorkspaceImageAttachment(attachment, settings)
         if (attachment.workspacePath.isBlank()) {
+            if (canInlineImage) {
+                return listOf(
+                    LlmTextPart(
+                        "Attached image '${attachment.name}' is inserted directly into this model request."
+                    ),
+                    LlmImagePart(
+                        mimeType = attachment.mimeType,
+                        base64Data = attachment.inlineBase64,
+                    ),
+                )
+            }
             return listOf(LlmTextPart(
                 "Attached file '${attachment.name}' is missing a workspace path. Ask the user to re-upload it if you need to inspect the file."
             ))
         }
 
-        val canInlineImage = canInlineWorkspaceImageAttachment(attachment, settings)
         val accessHint = if (isWorkspaceImageAttachment(attachment)) {
             if (canInlineImage) {
                 "This image was copied into the workspace and is also inserted into this model request when local bytes are available. Use analyze_image on this path for a focused second pass if needed."

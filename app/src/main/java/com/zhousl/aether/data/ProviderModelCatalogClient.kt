@@ -10,6 +10,18 @@ import java.net.URL
 
 private val PiThinkingLevels = listOf("off", "minimal", "low", "medium", "high", "xhigh", "max")
 
+internal fun openAiCompatibleThinkingLevels(): List<String> = PiThinkingLevels
+
+internal fun LlmProviderConfig.usesOpenAiCompatibleModelCatalog(): Boolean {
+    val definition = PiProviderCatalog.resolve(piProviderId)
+    if (!definition.isBuiltIn) return true
+
+    val normalizedBaseUrl = baseUrl.trim().trimEnd('/')
+    return piProviderId == "openai" &&
+        normalizedBaseUrl.isNotBlank() &&
+        normalizedBaseUrl != definition.defaultBaseUrl
+}
+
 internal fun supportedThinkingLevels(levels: JSONArray): List<String> =
     buildList {
         for (index in 0 until levels.length()) {
@@ -41,7 +53,7 @@ object ProviderModelCatalogClient {
             val definition = PiProviderCatalog.resolve(
                 config.piProviderId,
             )
-            if (definition.isBuiltIn && !config.usesCustomOpenAiCompatibleBaseUrl()) {
+            if (definition.isBuiltIn && !config.usesOpenAiCompatibleModelCatalog()) {
                 return@withContext fetchPiBuiltinModels(
                     definition = definition,
                     piKernelBridge = piKernelBridge,
@@ -116,13 +128,6 @@ object ProviderModelCatalogClient {
         return FetchModelsResult(emptyList(), "Provider ${definition.id} is unavailable.")
     }
 
-    private fun LlmProviderConfig.usesCustomOpenAiCompatibleBaseUrl(): Boolean {
-        val normalizedBaseUrl = baseUrl.trim().trimEnd('/')
-        return piProviderId == "openai" &&
-            normalizedBaseUrl.isNotBlank() &&
-            normalizedBaseUrl != PiProviderCatalog.resolve("openai").defaultBaseUrl
-    }
-
     private fun fetchOpenAiModels(config: LlmProviderConfig): FetchModelsResult {
         val baseUrl = config.baseUrl.trimEnd('/')
         val modelsUrl = when {
@@ -160,7 +165,12 @@ object ProviderModelCatalogClient {
                     { if (it.contains("gpt") || it.contains("chat")) 0 else 1 },
                     { it }
                 ))
-                FetchModelsResult(models)
+                FetchModelsResult(
+                    models = models,
+                    thinkingLevelsByModel = models.associateWith {
+                        openAiCompatibleThinkingLevels()
+                    },
+                )
             } else {
                 val errorText = connection.errorStream?.bufferedReader()?.readText() ?: "HTTP ${connection.responseCode}"
                 FetchModelsResult(emptyList(), errorText)

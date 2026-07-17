@@ -15,6 +15,30 @@ import org.junit.Test
 
 class PiProviderMapperTest {
     @Test
+    fun customProviderEnablesReasoningWhenThinkingIsSelected() {
+        val config = AppSettings(
+            piProviderId = "openai-compatible",
+            baseUrl = "https://example.test/v1",
+            modelId = "reasoning-model",
+            reasoningEffort = "high",
+        ).toPiModelConfig()
+
+        assertTrue(config.reasoning)
+    }
+
+    @Test
+    fun customProviderLeavesReasoningDisabledWhenThinkingIsOff() {
+        val config = AppSettings(
+            piProviderId = "openai-compatible",
+            baseUrl = "https://example.test/v1",
+            modelId = "chat-model",
+            reasoningEffort = "off",
+        ).toPiModelConfig()
+
+        assertFalse(config.reasoning)
+    }
+
+    @Test
     fun builtInOpenAiMapsDirectlyToPiCatalog() {
         val config = AppSettings(
             providerConfigId = "openai-config",
