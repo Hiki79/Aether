@@ -61,14 +61,22 @@ jobs:
           mkdir -p "$RUNNER_TEMP/aether-signing"
           echo "$NIGHTLY_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/aether-signing/aether-nightly.jks"
 
-      - name: Build Nightly APK
+      - name: Build APK
         env:
           NIGHTLY_KEYSTORE_FILE: ${{ runner.temp }}/aether-signing/aether-nightly.jks
           NIGHTLY_KEYSTORE_PASSWORD: ${{ secrets.NIGHTLY_KEYSTORE_PASSWORD }}
           NIGHTLY_KEY_ALIAS: ${{ secrets.NIGHTLY_KEY_ALIAS }}
           NIGHTLY_KEY_PASSWORD: ${{ secrets.NIGHTLY_KEY_PASSWORD }}
           VERSION_NAME: ${{ steps.nightly.outputs.version_name }}
-        run: ./gradlew :app:assembleNightly --stacktrace -Paether.versionName="$VERSION_NAME"
+        shell: bash
+        run: |
+          if [[ -n "$NIGHTLY_KEYSTORE_PASSWORD" && -n "$NIGHTLY_KEY_ALIAS" && -n "$NIGHTLY_KEY_PASSWORD" ]]; then
+            ./gradlew :app:testNightlyUnitTest :app:assembleNightly --stacktrace -Paether.versionName="$VERSION_NAME"
+            echo "apk_path=app/build/outputs/apk/nightly/app-nightly.apk" >> "$GITHUB_ENV"
+          else
+            ./gradlew :app:testDebugUnitTest :app:assembleDebug --stacktrace -Paether.versionName="$VERSION_NAME"
+            echo "apk_path=app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
+          fi
 
       - name: Rename Nightly APK
         shell: bash
@@ -76,7 +84,7 @@ jobs:
           SHORT_SHA: ${{ steps.nightly.outputs.short_sha }}
         run: |
           mkdir -p dist/nightly
-          cp app/build/outputs/apk/nightly/app-nightly.apk "dist/nightly/Aether-nightly-${SHORT_SHA}.apk"
+          cp "$apk_path" "dist/nightly/Aether-nightly-${SHORT_SHA}.apk"
 
       - name: Upload Nightly APK
         uses: actions/upload-artifact@v7
