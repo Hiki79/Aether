@@ -72,11 +72,23 @@ jobs:
         run: |
           if [[ -n "$NIGHTLY_KEYSTORE_PASSWORD" && -n "$NIGHTLY_KEY_ALIAS" && -n "$NIGHTLY_KEY_PASSWORD" ]]; then
             ./gradlew :app:testNightlyUnitTest :app:assembleNightly --stacktrace -Paether.versionName="$VERSION_NAME"
-            echo "apk_path=app/build/outputs/apk/nightly/app-nightly.apk" >> "$GITHUB_ENV"
           else
-            ./gradlew :app:testDebugUnitTest :app:assembleDebug --stacktrace -Paether.versionName="$VERSION_NAME"
-            echo "apk_path=app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
+            export NIGHTLY_KEYSTORE_PASSWORD=android
+            export NIGHTLY_KEY_ALIAS=aether-fork
+            export NIGHTLY_KEY_PASSWORD=android
+            rm -f "$NIGHTLY_KEYSTORE_FILE"
+            keytool -genkeypair \
+              -keystore "$NIGHTLY_KEYSTORE_FILE" \
+              -storepass "$NIGHTLY_KEYSTORE_PASSWORD" \
+              -alias "$NIGHTLY_KEY_ALIAS" \
+              -keypass "$NIGHTLY_KEY_PASSWORD" \
+              -dname "CN=Aether Fork Build" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 3650
+            ./gradlew :app:testNightlyUnitTest :app:assembleNightly --stacktrace -Paether.versionName="$VERSION_NAME"
           fi
+          echo "apk_path=app/build/outputs/apk/nightly/app-nightly.apk" >> "$GITHUB_ENV"
 
       - name: Rename Nightly APK
         shell: bash
