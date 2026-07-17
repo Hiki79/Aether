@@ -15,18 +15,6 @@ import org.junit.Test
 
 class PiProviderMapperTest {
     @Test
-    fun customProviderEnablesReasoningWhenThinkingIsSelected() {
-        val config = AppSettings(
-            piProviderId = "openai-compatible",
-            baseUrl = "https://example.test/v1",
-            modelId = "reasoning-model",
-            reasoningEffort = "high",
-        ).toPiModelConfig()
-
-        assertTrue(config.reasoning)
-    }
-
-    @Test
     fun customProviderLeavesReasoningDisabledWhenThinkingIsOff() {
         val config = AppSettings(
             piProviderId = "openai-compatible",
@@ -82,7 +70,7 @@ class PiProviderMapperTest {
     }
 
     @Test
-    fun customModelDoesNotInventReasoningCapability() {
+    fun customModelEnablesReasoningWhenThinkingIsSelected() {
         val config = AppSettings(
             piProviderId = "openai-compatible",
             providerConfigId = "custom-provider-id",
@@ -91,7 +79,7 @@ class PiProviderMapperTest {
             reasoningEffort = "high",
         ).toPiModelConfig()
 
-        assertFalse(config.reasoning)
+        assertTrue(config.reasoning)
         assertEquals("high", AppSettings(
             piProviderId = "openai-compatible",
             modelId = "custom-model",
